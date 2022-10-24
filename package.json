@@ -1,0 +1,20 @@
+{
+	"name": "openai-wrapper",
+	"version": "1.0.0",
+	"main": "index.js",
+	"author": {
+		"name": "Justin Carver",
+		"email": "justincarverdev@gmail.com",
+		"url": "https://blog.justincarver.work"
+	},
+	"dependencies": {
+		"@types/commander": "^2.12.2",
+		"commander": "^9.4.1",
+		"dotenv": "^16.0.3",
+		"openai": "^3.0.1",
+		"winston": "^3.8.2"
+	},
+	"scripts": {
+		"dev": "node ./src/index.js"
+	}
+}
