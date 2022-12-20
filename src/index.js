@@ -9,6 +9,8 @@ const configuration = new Configuration({
 });
 const openai = new OpenAIApi(configuration);
 
+// TODO: Implement the -i input option to import external prompts from file.
+
 /**
  * Both submits and trains the fine-tune dataset for the specified model.
  * Note: This does not verify if the training set is valid. Please refer to OpenAI's documentation
@@ -21,7 +23,7 @@ const openai = new OpenAIApi(configuration);
 const trainFineTuneModel = async (
 	payload,
 	model = 'davinci',
-	suffix = 'openai-wrapper',
+	suffix = 'openai-cli',
 	verbose = options.verbose
 ) => {
 	// ? Upload file to OpenAI servers.
@@ -30,7 +32,8 @@ const trainFineTuneModel = async (
 
 		// Attempt to upload the training set.
 		try {
-			if (payload.contains('.jsonl')) {
+			if (payload.includes('.jsonl')) {
+				console.log('Inside!');
 				uploadFile = await openai.createFile(
 					fs.createReadStream(payload),
 					'fine-tune'
@@ -91,8 +94,16 @@ const main = async () => {
 		options.beautify
 			? logger.info(beautify(response.data.choices[0].text))
 			: logger.info(JSON.stringify(response.data.choices));
-	} else {
-		logger.error('No prompt was supplied. API force quit.');
+	}
+
+	if (options.dalle) {
+		const response = await openai.createImage({
+			prompt: `${options.dalle}`,
+			n: parseInt(options.number),
+			size: options.size,
+		});
+		image_url = response.data.data[0].url;
+		logger.info(beautify(`Link to image: ${image_url}`));
 	}
 
 	// ? Remember! Fine-tuning can be pricey!

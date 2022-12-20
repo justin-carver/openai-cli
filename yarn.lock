@@ -188,9 +188,9 @@ one-time@^1.0.0:
     fn.name "1.x.x"
 
 openai@^3.0.1:
-  version "3.0.1"
-  resolved "https://registry.yarnpkg.com/openai/-/openai-3.0.1.tgz#4a6021e5bf32dfaa56e346b7a4830a80a479dd9c"
-  integrity sha512-5O9t7dBcUOIhzK5764nS/8WtkX812l8Uz0uoIHT8mczN2IUUUe7FsGbIxYGEkGBKA4GY1blT8QaWJVNZLG2cwA==
+  version "3.1.0"
+  resolved "https://registry.yarnpkg.com/openai/-/openai-3.1.0.tgz#13bfb228cf777155b882c2deb3a03bc5094cb7b3"
+  integrity sha512-v5kKFH5o+8ld+t0arudj833Mgm3GcgBnbyN9946bj6u7bvel4Yg6YFz2A4HLIYDzmMjIo0s6vSG9x73kOwvdCg==
   dependencies:
     axios "^0.26.0"
     form-data "^4.0.0"
