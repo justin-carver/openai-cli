@@ -18,8 +18,9 @@ Built on: [openai-node](https://github.com/openai/openai-node)
 | Flag                        | Description                                                                                                                                                    | Default Value                   |
 | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
 | -b, --beautify              | Formats the HTTP response from OpenAI's API to look beautiful. Note: 'p' was already taken by 'prompt', let alone 'prettier'.                                  | false                           |
-| -ft, --fine_tune <string>   | Train and upload a fine-tune dataset into OpenAI's servers to create a new model.                                                                              | (left blank to throw error)     |
+| -ft, --fine_tune <string>   | Train and upload a fine-tune dataset into OpenAI's servers to create a new model.                                                                              |                                 |
 | -h, --help                  | display help for command                                                                                                                                       |                                 |
+| -d, --dalle                 | Enables generation of DALL-E images using the command-line.                                                                                                    |                                 |
 | -m, --model <string>        | A string value representing the model name hosted on OpenAI's servers.                                                                                         | 'text-davinci-002'              |
 | -mt, --max_tokens <integer> | Changes number of max_tokens output by the current model. This directly correlates with API usage and pricing.                                                 | 64                              |
 | -o, --output <string>       | Writes the detected irony-probabilities in JSON-40000 to output_path/model_name. Note that if the file already exists, it will be overwritten without warning. | 'logs/output/[date].output.log' |
@@ -48,3 +49,7 @@ The five main security concepts when designing an API include:
 
 Done in 4.61s.
 ```
+
+### Output
+
+By default, all generated output will be directed into a folder labeled `logs/output/[date].output.log`. This is to save working ideas or review generated content.
