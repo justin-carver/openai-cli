@@ -68,21 +68,36 @@ const trainFineTuneModel = async (
 };
 
 // ? Separating logic to expand on this later. Keep it simple for now.
-const beautify = (string) => `\n${string.trim()}\n`;
+const beautify = (string) => `\n\n${string.trim()}\n`;
 
 const main = async () => {
 	const vObj = {
+		// verbose obj
 		version: 0.2,
 		beautify_enabled: options.beautify,
 		temperature: parseInt(options.temperature),
-		model: `${options.model}`,
-		max_tokens: parseInt(options.max_tokens),
+		model: options.prompt
+			? `${options.model}`
+			: `No model selected. Running in DALL-E mode.`,
+		max_tokens: options.prompt
+			? parseInt(options.max_tokens)
+			: `No max tokens. Running in DALL-E mode.`,
+		dalle: options.dalle,
+		number: options.dalle
+			? options.number
+			: `No number of images. Running in GPT-3 mode.`,
+		size: options.dalle
+			? options.size
+			: `No specified size. Running in GPT-3 mode.`,
 	};
+
+	options.verbose ? logger.info(JSON.stringify(vObj)) : null;
 
 	// Please refer to ./lib/utils for more information on arguments.
 	if (options.output) {
 		winstonAddFileTransport(options.output);
 	}
+
 	if (options.prompt) {
 		const response = await openai.createCompletion({
 			model: `${options.model}`,
@@ -90,7 +105,6 @@ const main = async () => {
 			temperature: parseInt(options.temperature),
 			max_tokens: options.max_tokens ? parseInt(options.max_tokens) : 64,
 		});
-		options.verbose ? logger.info(JSON.stringify(vObj)) : null;
 		options.beautify
 			? logger.info(beautify(response.data.choices[0].text))
 			: logger.info(JSON.stringify(response.data.choices));
@@ -102,8 +116,17 @@ const main = async () => {
 			n: parseInt(options.number),
 			size: options.size,
 		});
-		image_url = response.data.data[0].url;
-		logger.info(beautify(`Link to image: ${image_url}`));
+		if (response.data.data.length > 1) {
+			response.data.data.forEach((image, i) => {
+				logger.info(
+					beautify(`Link to image (#${i + 1}):\t${image.url}`)
+				);
+			});
+		} else {
+			logger.info(
+				beautify(`Link to image:\t${response.data.data[0].url}`)
+			);
+		}
 	}
 
 	// ? Remember! Fine-tuning can be pricey!

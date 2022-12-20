@@ -18,14 +18,16 @@ Built on: [openai-node](https://github.com/openai/openai-node)
 | Flag                        | Description                                                                                                                                                    | Default Value                   |
 | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
 | -b, --beautify              | Formats the HTTP response from OpenAI's API to look beautiful. Note: 'p' was already taken by 'prompt', let alone 'prettier'.                                  | false                           |
-| -ft, --fine_tune <string>   | Train and upload a fine-tune dataset into OpenAI's servers to create a new model.                                                                              |                                 |
+| -ft, --fine_tune [string]   | Train and upload a fine-tune dataset into OpenAI's servers to create a new model.                                                                              |                                 |
 | -h, --help                  | display help for command                                                                                                                                       |                                 |
-| -d, --dalle                 | Enables generation of DALL-E images using the command-line.                                                                                                    |                                 |
-| -m, --model <string>        | A string value representing the model name hosted on OpenAI's servers.                                                                                         | 'text-davinci-002'              |
-| -mt, --max_tokens <integer> | Changes number of max_tokens output by the current model. This directly correlates with API usage and pricing.                                                 | 64                              |
-| -o, --output <string>       | Writes the detected irony-probabilities in JSON-40000 to output_path/model_name. Note that if the file already exists, it will be overwritten without warning. | 'logs/output/[date].output.log' |
-| -p, --prompt <string>       | Passes a string value directly into model as a prompt.                                                                                                         | "What makes a good API?"        |
-| -t, --temperature           | Modified generation temperature. Temperature approaching 1 equates to more randomness in output. Value from 0 to 1.                                            | 1                               |
+| -d, --dalle [string]        | Enables generation of DALL-E images using the command-line.                                                                                                    |                                 |
+| -s, --size [string]         | The preferred resolution of images produced by DALL-E. (256x256, 512x512, 1024x1024)                                                                           | 256x256                         |
+| -n, --number [integer]      | Specifies the number of images that should be produced using DALL-E.                                                                                           | 1                               |
+| -m, --model [string]        | A string value representing the model name hosted on OpenAI's servers.                                                                                         | 'text-davinci-003'              |
+| -mt, --max_tokens [integer] | Changes number of max_tokens output by the current model. This directly correlates with API usage and pricing.                                                 | 64                              |
+| -o, --output [string]       | Writes the detected irony-probabilities in JSON-40000 to output_path/model_name. Note that if the file already exists, it will be overwritten without warning. | 'logs/output/[date].output.log' |
+| -p, --prompt [string]       | Passes a string value directly into model as a prompt.                                                                                                         |                                 |
+| -t, --temperature [float]   | Modified generation temperature. Temperature approaching 1 equates to more randomness in output. Value from 0 to 1.                                            | 1                               |
 | -v, --verbose               | Enables extraneous debugging information for most functions and services that support this flag.                                                               | false                           |
 
 ## Command-Line Example
@@ -33,7 +35,7 @@ Built on: [openai-node](https://github.com/openai/openai-node)
 ```txt
 $ node ./src/index.js -b -v -t 1 -mt 256 -p "What are 5 main security concepts when designing an API?"
 
-info: {"version":0.2,"beautify_enabled":true,"temperature":1,"model":"text-davinci-002","max_tokens":256}
+info: {"version":0.2,"beautify_enabled":true,"temperature":1,"model":"text-davinci-003","max_tokens":256}
 info:
 The five main security concepts when designing an API include:
 
