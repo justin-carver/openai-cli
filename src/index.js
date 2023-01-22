@@ -1,15 +1,24 @@
 const fs = require('fs');
+const https = require('https');
 const { options, logger, winstonAddFileTransport } = require('../lib/utils');
 require('dotenv').config();
 
 const { Configuration, OpenAIApi } = require('openai');
 const winston = require('winston/lib/winston/config');
+const { verbose } = require('winston');
 const configuration = new Configuration({
 	apiKey: process.env.OPENAI_API_KEY,
 });
 const openai = new OpenAIApi(configuration);
 
-// TODO: Implement the -i input option to import external prompts from file.
+const openAICompletionQuery = {
+	model: `${options.model}`,
+	prompt: `${options.prompt}`,
+	temperature: parseFloat(options.temp),
+	max_tokens: parseInt(options.max_tokens),
+	echo: options.echo,
+	stream: options.stream,
+};
 
 /**
  * Both submits and trains the fine-tune dataset for the specified model.
@@ -35,7 +44,7 @@ const trainFineTuneModel = async (
 			if (payload.includes('.jsonl')) {
 				console.log('Inside!');
 				uploadFile = await openai.createFile(
-					fs.createReadStream(payload),
+					fs.createReadStream(payload, { encoding: 'utf-8' }),
 					'fine-tune'
 				);
 			} else {
@@ -52,7 +61,7 @@ const trainFineTuneModel = async (
 					suffix: `${suffix}`,
 				});
 				logger.info(
-					'Submitted! Please give it time process on the OpenAI servers.'
+					'Submitted! Please give it time to process on the OpenAI servers...'
 				);
 				verbose ? console.log(fineTuneResponse) : null;
 			} catch (e) {
@@ -68,29 +77,183 @@ const trainFineTuneModel = async (
 };
 
 // ? Separating logic to expand on this later. Keep it simple for now.
-const beautify = (string) => `\n${string.trim()}\n`;
+const beautify = (string) => `\n\n${string.trim()}\n`;
 
 const main = async () => {
 	const vObj = {
-		version: 0.2,
-		beautify_enabled: options.beautify,
-		temperature: parseInt(options.temperature),
-		model: `${options.model}`,
-		max_tokens: parseInt(options.max_tokens),
+		// verbose obj
+		version: 0.3,
+		beautify: options.beautify,
+		temp: parseFloat(options.temp),
+		prompt: options.prompt,
+		stream: options.stream,
+		echo: options.echo,
+		model: options.prompt
+			? `${options.model}`
+			: `No model selected. Running in Dall-E mode.`,
+		max_tokens: options.prompt
+			? options.max_tokens
+			: `No max tokens. Running in Dall-E mode.`,
+		dalle: options.dalle,
+		count: options.dalle
+			? options.count
+			: `No number of images. Running in GPT mode.`,
+		size: options.dalle
+			? options.size
+			: `No specified size. Running in GPT mode.`,
 	};
+
+	options.verbose ? logger.info(JSON.stringify(vObj)) : null;
+
+	// ? Config file overwrites command-line arguments!
+	// ? Multiple prompt query must be used with the -i flag.
+	// TODO: Organize later.
+	if (options.config) {
+		const config = JSON.parse(
+			fs.readFileSync(options.config, { encoding: 'utf-8' })
+		);
+		config.temp ? (options.temp = config.temp) : options.temp;
+		config.max_tokens
+			? (options.max_tokens = config.max_tokens)
+			: options.max_tokens;
+		config.beautify
+			? (options.beautify = config.beautify)
+			: options.beautify;
+		config.model ? (options.model = config.model) : options.model;
+		config.dalle ? (options.dalle = config.dalle) : options.dalle;
+		config.size ? (options.size = config.size) : options.size;
+		config.model ? (options.model = config.model) : options.model;
+		config.count ? (options.count = config.count) : options.count;
+		config.output ? (options.output = config.output) : options.output;
+		config.prompt ? (options.prompt = config.prompt) : options.prompt;
+		config.stream ? (options.stream = config.stream) : options.stream;
+		config.verbose ? (options.verbose = config.verbose) : options.verbose;
+		config.input ? (options.input = config.input) : options.input;
+	}
 
 	// Please refer to ./lib/utils for more information on arguments.
 	if (options.output) {
-		winstonAddFileTransport(options.output);
+		winstonAddFileTransport(
+			options.output,
+			verbose ? JSON.stringify(vObj) : ''
+		);
 	}
-	if (options.prompt) {
-		const response = await openai.createCompletion({
-			model: `${options.model}`,
-			prompt: `${options.prompt}`,
-			temperature: parseInt(options.temperature),
-			max_tokens: options.max_tokens ? parseInt(options.max_tokens) : 64,
-		});
-		options.verbose ? logger.info(JSON.stringify(vObj)) : null;
+
+	if (options.input) {
+		const input = fs.readFileSync(options.input, { encoding: 'utf-8' });
+		const jsonData = JSON.parse(input);
+
+		for (let key in jsonData) {
+			const response = await openai.createCompletion(
+				{
+					...openAICompletionQuery,
+					prompt: jsonData[key],
+				},
+				{ responseType: 'text' }
+			);
+			// console.log(response);
+			options.beautify
+				? logger.info(beautify(response.data.choices[0].text))
+				: logger.info(JSON.stringify(response.data.choices));
+		}
+	}
+
+	if (options.stream && options.prompt) {
+		// https://2ality.com/2018/04/async-iter-nodejs.html#generator-%231%3A-from-chunks-to-lines
+		async function* chunksToLines(chunksAsync) {
+			let previous = '';
+			for await (const chunk of chunksAsync) {
+				const bufferChunk = Buffer.isBuffer(chunk)
+					? chunk
+					: Buffer.from(chunk);
+				previous += bufferChunk;
+				let eolIndex;
+				while ((eolIndex = previous.indexOf('\n')) >= 0) {
+					// line includes the EOL
+					const line = previous.slice(0, eolIndex + 1).trimEnd();
+					if (line === 'data: [DONE]') break;
+					if (line.startsWith('data: ')) yield line;
+					previous = previous.slice(eolIndex + 1);
+				}
+			}
+		}
+
+		async function* linesToMessages(linesAsync) {
+			for await (const line of linesAsync) {
+				const message = line.substring('data :'.length);
+
+				yield message;
+			}
+		}
+
+		async function* streamCompletion(data) {
+			yield* linesToMessages(chunksToLines(data));
+		}
+
+		let output = '';
+
+		try {
+			const completion = await openai.createCompletion(
+				openAICompletionQuery,
+				{ responseType: 'stream' }
+			);
+
+			for await (const message of streamCompletion(completion.data)) {
+				try {
+					const parsed = JSON.parse(message);
+					const { text } = parsed.choices[0];
+
+					process.stdout.write(text);
+					output += text;
+				} catch (error) {
+					logger.error(
+						'Could not JSON parse stream message',
+						message,
+						error
+					);
+				}
+			}
+			process.stdout.write('\n');
+
+			// Manually append to file, creating a new logger would complicate things.
+			fs.appendFileSync(
+				`logs/output/${new Date()
+					.toISOString()
+					.replace(/T.*/, '')
+					.split('-')
+					.join('-')}.output.log`,
+				`${JSON.stringify(vObj)}\n${output}`,
+				(err) => {
+					if (err) throw err;
+				}
+			);
+		} catch (error) {
+			if (error.response?.status) {
+				logger.error(error.response.status, error.message);
+
+				for await (const data of error.response.data) {
+					const message = data.toString();
+
+					try {
+						const parsed = JSON.parse(message);
+
+						logger.error(
+							'An error occurred during OpenAI request: ',
+							parsed
+						);
+					} catch (error) {
+						logger.error(
+							'An error occurred during OpenAI request: ',
+							message
+						);
+					}
+				}
+			} else {
+				logger.error('An error occurred during OpenAI request', error);
+			}
+		}
+	} else {
+		const response = await openai.createCompletion(openAICompletionQuery);
 		options.beautify
 			? logger.info(beautify(response.data.choices[0].text))
 			: logger.info(JSON.stringify(response.data.choices));
@@ -99,14 +262,24 @@ const main = async () => {
 	if (options.dalle) {
 		const response = await openai.createImage({
 			prompt: `${options.dalle}`,
-			n: parseInt(options.number),
+			n: parseInt(options.count),
 			size: options.size,
 		});
-		image_url = response.data.data[0].url;
-		logger.info(beautify(`Link to image: ${image_url}`));
+		if (response.data.data.length > 1) {
+			response.data.data.forEach((image, i) => {
+				logger.info(
+					beautify(`Link to image (#${i + 1}):\t${image.url}`)
+				);
+			});
+		} else {
+			logger.info(
+				beautify(`Link to image:\t${response.data.data[0].url}`)
+			);
+		}
 	}
 
 	// ? Remember! Fine-tuning can be pricey!
+	// ? https://openai.com/api/pricing/
 	if (options.fine_tune) {
 		trainFineTuneModel(options.fine_tune);
 	}
