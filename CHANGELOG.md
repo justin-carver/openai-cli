@@ -1,4 +1,18 @@
-## Version 3
+## Verison 4
+
+-   Added `-fp, --freq_pen` flag to allow modifications to the frequency penalty.
+-   Added `-pp, --pres_pen` flag to allow modifications to the presence penalty.
+-   Added `-ij, --inject` flag to allow appending text to the end of a prompt string. Great for using external/config prompts.
+-   Added `-n, --number` flag to edit the amount of completions returned by the endpoint.
+-   Added `-tp, --top_p` flag to give an alternative to sampling output.
+-   Added `-su, --suffix` flag to continue migrating the API. Suffixes are not the same as injections, please refer to the documentation in the README.md.
+-   Added `--stop` flag to allow up to 4 stop sequences.
+-   Tweaking `--stream` flag performance and appearance.
+-   Updated verbose object (vObj) to use shorter descriptions.
+-   Fixed issued with config files not actually assuming new parameters when using it.
+-   Streamlined core functions.
+
+### Version 3
 
 -   Added `-st, --stream` flag to enable response streaming from the API endpoint, similar to how the playground functions.
 -   Added `-c, --config` flag to import model settings from an external JSON file.

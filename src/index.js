@@ -1,24 +1,13 @@
 const fs = require('fs');
-const https = require('https');
 const { options, logger, winstonAddFileTransport } = require('../lib/utils');
 require('dotenv').config();
 
 const { Configuration, OpenAIApi } = require('openai');
-const winston = require('winston/lib/winston/config');
 const { verbose } = require('winston');
 const configuration = new Configuration({
 	apiKey: process.env.OPENAI_API_KEY,
 });
 const openai = new OpenAIApi(configuration);
-
-const openAICompletionQuery = {
-	model: `${options.model}`,
-	prompt: `${options.prompt}`,
-	temperature: parseFloat(options.temp),
-	max_tokens: parseInt(options.max_tokens),
-	echo: options.echo,
-	stream: options.stream,
-};
 
 /**
  * Both submits and trains the fine-tune dataset for the specified model.
@@ -80,31 +69,6 @@ const trainFineTuneModel = async (
 const beautify = (string) => `\n\n${string.trim()}\n`;
 
 const main = async () => {
-	const vObj = {
-		// verbose obj
-		version: 0.3,
-		beautify: options.beautify,
-		temp: parseFloat(options.temp),
-		prompt: options.prompt,
-		stream: options.stream,
-		echo: options.echo,
-		model: options.prompt
-			? `${options.model}`
-			: `No model selected. Running in Dall-E mode.`,
-		max_tokens: options.prompt
-			? options.max_tokens
-			: `No max tokens. Running in Dall-E mode.`,
-		dalle: options.dalle,
-		count: options.dalle
-			? options.count
-			: `No number of images. Running in GPT mode.`,
-		size: options.dalle
-			? options.size
-			: `No specified size. Running in GPT mode.`,
-	};
-
-	options.verbose ? logger.info(JSON.stringify(vObj)) : null;
-
 	// ? Config file overwrites command-line arguments!
 	// ? Multiple prompt query must be used with the -i flag.
 	// TODO: Organize later.
@@ -120,16 +84,70 @@ const main = async () => {
 			? (options.beautify = config.beautify)
 			: options.beautify;
 		config.model ? (options.model = config.model) : options.model;
+		config.top_p ? (options.top_p = config.top_p) : options.top_p;
+		config.n ? (options.n = config.n) : options.n;
 		config.dalle ? (options.dalle = config.dalle) : options.dalle;
 		config.size ? (options.size = config.size) : options.size;
 		config.model ? (options.model = config.model) : options.model;
 		config.count ? (options.count = config.count) : options.count;
+		config.raw ? (options.raw = config.raw) : options.raw;
 		config.output ? (options.output = config.output) : options.output;
 		config.prompt ? (options.prompt = config.prompt) : options.prompt;
 		config.stream ? (options.stream = config.stream) : options.stream;
+		config.pres_pen
+			? (options.pres_pen = config.pres_pen)
+			: options.pres_pen;
+		config.freq_pen
+			? (options.freq_pen = config.freq_pen)
+			: options.freq_pen;
 		config.verbose ? (options.verbose = config.verbose) : options.verbose;
 		config.input ? (options.input = config.input) : options.input;
 	}
+
+	// Verbose Object (vObj) MUST be initialized BEFORE config updates above ^
+	const vObj = {
+		version: 0.4,
+		beautify: options.beautify,
+		temp: parseFloat(options.temp),
+		prompt: options.prompt,
+		n: options.n,
+		injection: options.inject,
+		stream: options.stream,
+		echo: options.echo,
+		suffix: options.suffix,
+		top_p: parseFloat(options.top_p),
+		n: options.n,
+		frequency_penalty: parseFloat(options.freq_pen),
+		presence_penalty: parseFloat(options.pres_pen),
+		model: options.prompt ? `${options.model}` : `DALL-E MODE`,
+		max_tokens: options.prompt
+			? parseInt(options.max_tokens)
+			: `DALL-E MODE`,
+		stop: options.stop,
+		raw: options.raw,
+		dalle: options.dalle,
+		count: options.dalle ? options.count : `GPT MODE`,
+		size: options.dalle ? options.size : `GPT MODE`,
+	};
+
+	// Does this have to be last?
+	const completionRequest = {
+		model: `${options.model}`,
+		prompt: `${
+			options.prompt + (options.inject ? ' ' + options.inject : '')
+		}`,
+		suffix: options.suffix,
+		temperature: parseFloat(options.temp),
+		max_tokens: parseInt(options.max_tokens),
+		echo: options.echo,
+		frequency_penalty: parseFloat(options.freq_pen),
+		presence_penalty: parseFloat(options.pres_pen),
+		suffix: options.suffix,
+		stream: options.stream,
+		top_p: parseFloat(options.top_p),
+		n: options.n,
+		stop: options.stop,
+	};
 
 	// Please refer to ./lib/utils for more information on arguments.
 	if (options.output) {
@@ -139,18 +157,23 @@ const main = async () => {
 		);
 	}
 
+	if (options.raw) {
+		// Returns the ENTIRE response object.
+		const response = await openai.createCompletion(completionRequest);
+		options.verbose ? logger.info(JSON.stringify(vObj)) : null;
+		logger.info(response);
+		return;
+	}
+
+	// External prompt input
 	if (options.input) {
 		const input = fs.readFileSync(options.input, { encoding: 'utf-8' });
 		const jsonData = JSON.parse(input);
 
 		for (let key in jsonData) {
-			const response = await openai.createCompletion(
-				{
-					...openAICompletionQuery,
-					prompt: jsonData[key],
-				},
-				{ responseType: 'text' }
-			);
+			const response = await openai.createCompletion(completionRequest, {
+				responseType: 'text',
+			});
 			// console.log(response);
 			options.beautify
 				? logger.info(beautify(response.data.choices[0].text))
@@ -158,6 +181,9 @@ const main = async () => {
 		}
 	}
 
+	// Streaming Workaround! (May get fixed soon?)
+	// Streaming is currently handled differently than the general prompt request.
+	// This requires handling its own output and any other quirks that provides.
 	if (options.stream && options.prompt) {
 		// https://2ality.com/2018/04/async-iter-nodejs.html#generator-%231%3A-from-chunks-to-lines
 		async function* chunksToLines(chunksAsync) {
@@ -193,8 +219,10 @@ const main = async () => {
 		let output = '';
 
 		try {
+			options.verbose ? logger.info(JSON.stringify(vObj)) : null;
+
 			const completion = await openai.createCompletion(
-				openAICompletionQuery,
+				completionRequest,
 				{ responseType: 'stream' }
 			);
 
@@ -213,7 +241,7 @@ const main = async () => {
 					);
 				}
 			}
-			process.stdout.write('\n');
+			process.stdout.write('\n\n');
 
 			// Manually append to file, creating a new logger would complicate things.
 			fs.appendFileSync(
@@ -253,12 +281,15 @@ const main = async () => {
 			}
 		}
 	} else {
-		const response = await openai.createCompletion(openAICompletionQuery);
+		const response = await openai.createCompletion(completionRequest);
+		options.verbose ? logger.info(JSON.stringify(vObj)) : null;
+
 		options.beautify
 			? logger.info(beautify(response.data.choices[0].text))
 			: logger.info(JSON.stringify(response.data.choices));
 	}
 
+	// DALLE Image Generation
 	if (options.dalle) {
 		const response = await openai.createImage({
 			prompt: `${options.dalle}`,
