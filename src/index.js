@@ -1,9 +1,11 @@
 const fs = require('fs');
+const util = require('util');
+
 const { options, logger, winstonAddFileTransport } = require('../lib/utils');
 require('dotenv').config();
 
 const { Configuration, OpenAIApi } = require('openai');
-const { verbose } = require('winston');
+const winston = require('winston');
 const configuration = new Configuration({
 	apiKey: process.env.OPENAI_API_KEY,
 });
@@ -66,9 +68,21 @@ const trainFineTuneModel = async (
 };
 
 // ? Separating logic to expand on this later. Keep it simple for now.
-const beautify = (string) => `\n\n${string.trim()}\n`;
+const beautify = (string) => `\n\n${string.trim()}\n`.replace(/\\n/g, '\n');
 
 const main = async () => {
+	//
+	// If we're not in production then log to the `console` with the format:
+	// `${info.level}: ${info.message} JSON.stringify({ ...rest }) `
+	//
+	if (process.env.NODE_ENV !== 'production' && !options.chat) {
+		logger.add(
+			new winston.transports.Console({
+				format: winston.format.simple(),
+			})
+		);
+	}
+
 	// ? Config file overwrites command-line arguments!
 	// ? Multiple prompt query must be used with the -i flag.
 	// TODO: Organize later.
@@ -76,35 +90,29 @@ const main = async () => {
 		const config = JSON.parse(
 			fs.readFileSync(options.config, { encoding: 'utf-8' })
 		);
-		config.temp ? (options.temp = config.temp) : options.temp;
-		config.max_tokens
-			? (options.max_tokens = config.max_tokens)
-			: options.max_tokens;
-		config.beautify
-			? (options.beautify = config.beautify)
-			: options.beautify;
-		config.model ? (options.model = config.model) : options.model;
-		config.top_p ? (options.top_p = config.top_p) : options.top_p;
-		config.n ? (options.n = config.n) : options.n;
-		config.dalle ? (options.dalle = config.dalle) : options.dalle;
-		config.size ? (options.size = config.size) : options.size;
-		config.model ? (options.model = config.model) : options.model;
-		config.count ? (options.count = config.count) : options.count;
-		config.raw ? (options.raw = config.raw) : options.raw;
-		config.output ? (options.output = config.output) : options.output;
-		config.prompt ? (options.prompt = config.prompt) : options.prompt;
-		config.stream ? (options.stream = config.stream) : options.stream;
-		config.pres_pen
-			? (options.pres_pen = config.pres_pen)
-			: options.pres_pen;
-		config.freq_pen
-			? (options.freq_pen = config.freq_pen)
-			: options.freq_pen;
-		config.verbose ? (options.verbose = config.verbose) : options.verbose;
-		config.input ? (options.input = config.input) : options.input;
+		if (config.temp) options.temp = config.temp;
+		if (config.max_tokens) options.max_tokens = config.max_tokens;
+		if (config.beautify) options.beautify = config.beautify;
+		if (config.model) options.model = config.model;
+		if (config.top_p) options.top_p = config.top_p;
+		if (config.n) options.n = config.n;
+		if (config.dalle) options.dalle = config.dalle;
+		if (config.size) options.size = config.size;
+		if (config.count) options.count = config.count;
+		if (config.raw) options.raw = config.raw;
+		if (config.output) options.output = config.output;
+		if (config.prompt) options.prompt = config.prompt;
+		if (config.stream) options.stream = config.stream;
+		if (config.pres_pen) options.pres_pen = config.pres_pen;
+		if (config.freq_pen) options.freq_pen = config.freq_pen;
+		if (config.verbose) options.verbose = config.verbose;
+		if (config.input) options.input = config.input;
+		if (config.chat) options.chat = config.chat;
+		if (config.name) options.name = config.name;
 	}
 
 	// Verbose Object (vObj) MUST be initialized BEFORE config updates above ^
+	// If there is no default value in .\lib\utils, and is not supplied, it will not appear in vObj.
 	const vObj = {
 		version: 0.4,
 		beautify: options.beautify,
@@ -120,6 +128,8 @@ const main = async () => {
 		frequency_penalty: parseFloat(options.freq_pen),
 		presence_penalty: parseFloat(options.pres_pen),
 		model: options.prompt ? `${options.model}` : `DALL-E MODE`,
+		chat: options.chat,
+		name: options.name,
 		max_tokens: options.prompt
 			? parseInt(options.max_tokens)
 			: `DALL-E MODE`,
@@ -146,14 +156,16 @@ const main = async () => {
 		stream: options.stream,
 		top_p: parseFloat(options.top_p),
 		n: options.n,
-		stop: options.stop,
+		best_of: options.best_of,
+		logprobs: parseInt(options.log_probs),
+		stop: typeof options.stop == [] ? options.stop.flat() : options.stop,
 	};
 
 	// Please refer to ./lib/utils for more information on arguments.
 	if (options.output) {
 		winstonAddFileTransport(
 			options.output,
-			verbose ? JSON.stringify(vObj) : ''
+			options.verbose ? JSON.stringify(vObj) : ''
 		);
 	}
 
@@ -161,11 +173,19 @@ const main = async () => {
 		// Returns the ENTIRE response object.
 		const response = await openai.createCompletion(completionRequest);
 		options.verbose ? logger.info(JSON.stringify(vObj)) : null;
-		logger.info(response);
+		// logger.info(JSON.stringify(response));
+		logger.info(
+			util.inspect(response, {
+				showHidden: false,
+				depth: null,
+				colors: true,
+			})
+		);
 		return;
 	}
 
 	// External prompt input
+	// May have some issues!
 	if (options.input) {
 		const input = fs.readFileSync(options.input, { encoding: 'utf-8' });
 		const jsonData = JSON.parse(input);
@@ -174,9 +194,11 @@ const main = async () => {
 			const response = await openai.createCompletion(completionRequest, {
 				responseType: 'text',
 			});
-			// console.log(response);
+
+			// options.log_probs ? logger.info(response.data.choices) : 'Log probs not enabled?';
+
 			options.beautify
-				? logger.info(beautify(response.data.choices[0].text))
+				? logger.info(beautify(response.data.cshoices[0].text))
 				: logger.info(JSON.stringify(response.data.choices));
 		}
 	}
@@ -184,7 +206,7 @@ const main = async () => {
 	// Streaming Workaround! (May get fixed soon?)
 	// Streaming is currently handled differently than the general prompt request.
 	// This requires handling its own output and any other quirks that provides.
-	if (options.stream && options.prompt) {
+	if (options.stream && options.prompt && !options.chat) {
 		// https://2ality.com/2018/04/async-iter-nodejs.html#generator-%231%3A-from-chunks-to-lines
 		async function* chunksToLines(chunksAsync) {
 			let previous = '';
@@ -280,7 +302,7 @@ const main = async () => {
 				logger.error('An error occurred during OpenAI request', error);
 			}
 		}
-	} else {
+	} else if (!options.chat) {
 		const response = await openai.createCompletion(completionRequest);
 		options.verbose ? logger.info(JSON.stringify(vObj)) : null;
 
@@ -307,6 +329,95 @@ const main = async () => {
 				beautify(`Link to image:\t${response.data.data[0].url}`)
 			);
 		}
+	}
+
+	if (options.chat) {
+		// Must import dynamically
+		(async () => {
+			const inquirerPromise = import('inquirer');
+			const inquirer = await inquirerPromise;
+
+			const chatCommands = ['!CLEAR'];
+
+			// Set message start and store for later
+			let history = [
+				{
+					role: 'assistant',
+					content: options.prompt || '',
+				},
+			];
+
+			options.verbose ? logger.info(JSON.stringify(vObj)) : null;
+
+			const messageLoop = () => {
+				// Create message loop
+				inquirer.default
+					.prompt({
+						type: 'input',
+						name: 'userinput',
+						message: 'User:',
+						prefix: '🔎',
+					})
+					.then(async (answers) => {
+						switch (answers.userinput) {
+							// Custom commands.
+							case '!CLEAR':
+								console.clear();
+								break;
+							default:
+								// Harded coded model for now, no other models present.
+								const response =
+									await openai.createChatCompletion({
+										model: 'gpt-3.5-turbo',
+										messages: [
+											...history,
+											{
+												role: 'user',
+												content: answers.userinput,
+											},
+										],
+									});
+
+								// Add user response and assistant responses to history.
+								history.push({
+									role: 'user',
+									content: answers.userinput,
+								});
+
+								history.push({
+									role: 'assistant',
+									content:
+										response.data.choices[0].message
+											.content,
+								});
+
+								// Output
+								console.log(
+									`🧠 ${options.name}: ${beautify(
+										JSON.stringify(
+											response.data.choices.at(-1).message
+												.content
+										)
+									)
+										.replace(/^[\s\n]+|[\s\n]+$/g, '')
+										.replace(/^"|"$/g, '')}`
+								);
+								// Log the inputs and outputs.
+								logger.info(JSON.stringify(answers.userinput));
+
+								logger.info(
+									JSON.stringify(
+										response.data.choices.at(-1).message
+											.content
+									)
+								);
+								break;
+						}
+						messageLoop();
+					});
+			};
+			messageLoop();
+		})();
 	}
 
 	// ? Remember! Fine-tuning can be pricey!

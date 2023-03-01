@@ -1,12 +1,22 @@
-## Verison 4
+## Version 5
+
+-   Updated `openai` library to `1.22.19`, up from `1.22.15`.
+-   Added `inquirer` dependency for chat interaction.
+-   Added `--chat` flag to allow access to the ChatGPT API endpoint! (Finally!!! 🥳)
+-   Added `--name` flag to allow users to set the name of the chat bot in the terminal.
+
+### Verison 4
 
 -   Added `-fp, --freq_pen` flag to allow modifications to the frequency penalty.
 -   Added `-pp, --pres_pen` flag to allow modifications to the presence penalty.
 -   Added `-ij, --inject` flag to allow appending text to the end of a prompt string. Great for using external/config prompts.
 -   Added `-n, --number` flag to edit the amount of completions returned by the endpoint.
+-   Added `-bo, --best_of` flag to generate the completions server-side and returns the "best" result.
+-   Added `-l, --log_probs` flag to include the log probabilities on the most likely tokens.
 -   Added `-tp, --top_p` flag to give an alternative to sampling output.
 -   Added `-su, --suffix` flag to continue migrating the API. Suffixes are not the same as injections, please refer to the documentation in the README.md.
 -   Added `--stop` flag to allow up to 4 stop sequences.
+-   Added `-r, --raw` flag to allow output of entire axios response object.
 -   Tweaking `--stream` flag performance and appearance.
 -   Updated verbose object (vObj) to use shorter descriptions.
 -   Fixed issued with config files not actually assuming new parameters when using it.
