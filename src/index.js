@@ -347,7 +347,7 @@ const main = async () => {
 				},
 			];
 
-			options.verbose ? logger.info(JSON.stringify(vObj)) : null;
+			options.verbose ? console.log(JSON.stringify(vObj)) : null;
 
 			const messageLoop = () => {
 				// Create message loop
@@ -356,7 +356,7 @@ const main = async () => {
 						type: 'input',
 						name: 'userinput',
 						message: 'User:',
-						prefix: '🔎',
+						prefix: '\n🔎',
 					})
 					.then(async (answers) => {
 						switch (answers.userinput) {
@@ -376,6 +376,11 @@ const main = async () => {
 												content: answers.userinput,
 											},
 										],
+										frequency_penalty: parseFloat(
+											options.freq_pen
+										),
+										temperature: parseFloat(options.temp),
+										top_p: parseFloat(options.top_p),
 									});
 
 								// Add user response and assistant responses to history.
@@ -393,14 +398,16 @@ const main = async () => {
 
 								// Output
 								console.log(
-									`🧠 ${options.name}: ${beautify(
+									`\n🧠 ${options.name}: ${beautify(
 										JSON.stringify(
 											response.data.choices.at(-1).message
 												.content
 										)
 									)
+										.replace(/^"+|"+$/g, '')
 										.replace(/^[\s\n]+|[\s\n]+$/g, '')
-										.replace(/^"|"$/g, '')}`
+										.replace(/^"|"$/g, '')
+										.replace(/\\/g, '')}`
 								);
 								// Log the inputs and outputs.
 								logger.info(JSON.stringify(answers.userinput));

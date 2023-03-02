@@ -17,6 +17,7 @@
 		"winston": "^3.8.2"
 	},
 	"scripts": {
-		"dev": "node ./src/index.js"
+		"dev": "node ./src/index.js",
+		"build": "nexe ./src/index.js --build"
 	}
 }
